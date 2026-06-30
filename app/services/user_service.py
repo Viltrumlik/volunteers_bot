@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database.models import User, UserRole
 from app.repositories.user_repository import UserRepository
+
+if TYPE_CHECKING:
+    from aiogram.types import User as TgUser
 
 
 class UserService:
@@ -25,7 +30,7 @@ class UserService:
     async def get_by_telegram_id(self, telegram_id: int) -> User | None:
         return await self._repo.get_by_telegram_id(telegram_id)
 
-    async def ensure_env_privileged_stub(self, telegram_user) -> User | None:
+    async def ensure_env_privileged_stub(self, telegram_user: TgUser) -> User | None:
         tid = telegram_user.id
         s = get_settings()
         if not s.is_env_privileged_user(tid):
@@ -107,7 +112,9 @@ class UserService:
         return u
 
     async def set_language(self, telegram_id: int, lang: str) -> None:
-        await self.session.execute(update(User).where(User.telegram_id == telegram_id).values(language=lang))
+        await self.session.execute(
+            update(User).where(User.telegram_id == telegram_id).values(language=lang)
+        )
 
     async def count_users(self) -> int:
         return await self._repo.count_users()

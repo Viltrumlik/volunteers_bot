@@ -15,6 +15,14 @@ ENV/
 .env.local
 .env.*.local
 
+# Service-account keys / credentials — never commit
+credentials.json
+service-account*.json
+*-service-account.json
+secrets/
+*.pem
+*.key
+
 # Local databases
 *.db
 *.sqlite3
@@ -29,6 +37,7 @@ pip-wheel-metadata/
 # Test / coverage
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 .mypy_cache/
 .ruff_cache/

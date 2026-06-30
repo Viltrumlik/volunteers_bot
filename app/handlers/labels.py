@@ -17,10 +17,13 @@ def all_registered_menu_labels() -> set[str]:
         "menu.faq",
         "menu.support",
         "menu.suggestion",
+        "menu.shifts",
+        "menu.hours",
         "menu.broadcast",
         "menu.regions_admin",
         "menu.applications_admin",
         "menu.projects_admin",
         "menu.faq_admin",
+        "menu.events_admin",
         "menu.admin_panel",
     )

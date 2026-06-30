@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,18 +17,22 @@ class UserRepository:
         return r.scalar_one_or_none()
 
     async def touch_activity(self, telegram_id: int, username: str | None = None) -> None:
-        vals: dict = {"last_active_at": datetime.now(timezone.utc)}
+        vals: dict[str, object] = {"last_active_at": datetime.now(UTC)}
         if username is not None:
             vals["username"] = username
-        await self.session.execute(update(User).where(User.telegram_id == telegram_id).values(**vals))
+        await self.session.execute(
+            update(User).where(User.telegram_id == telegram_id).values(**vals)
+        )
 
     async def count_users(self) -> int:
         r = await self.session.execute(select(func.count()).select_from(User))
         return int(r.scalar_one())
 
     async def count_active_users(self, days: int = 7) -> int:
-        since = datetime.now(timezone.utc) - timedelta(days=days)
-        r = await self.session.execute(select(func.count()).select_from(User).where(User.last_active_at >= since))
+        since = datetime.now(UTC) - timedelta(days=days)
+        r = await self.session.execute(
+            select(func.count()).select_from(User).where(User.last_active_at >= since)
+        )
         return int(r.scalar_one())
 
     async def list_users_page(
@@ -50,7 +54,9 @@ class UserRepository:
                     func.lower(func.coalesce(User.username, "")).like(term),
                 )
             )
-        count_stmt = select(func.count()).select_from(User).outerjoin(Region, User.region_id == Region.id)
+        count_stmt = (
+            select(func.count()).select_from(User).outerjoin(Region, User.region_id == Region.id)
+        )
         if filters:
             count_stmt = count_stmt.where(*filters)
         total = int((await self.session.execute(count_stmt)).scalar_one())

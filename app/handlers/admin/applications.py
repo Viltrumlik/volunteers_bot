@@ -32,7 +32,12 @@ def _apps_kb(lang: str, apps: list) -> InlineKeyboardMarkup | None:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(None), F.text.in_(label_set("menu.applications_admin")))
+@router.message(
+    F.chat.type == "private",
+    IsAdmin(),
+    StateFilter(None),
+    F.text.in_(label_set("menu.applications_admin")),
+)
 async def open_applications(message: Message, db_user: User, session):
     lang = db_user.language
     pending = await ApplicationService(session).list_pending()
@@ -43,7 +48,9 @@ async def open_applications(message: Message, db_user: User, session):
     for a in pending:
         uname = a.user.full_name if a.user else "?"
         pname = a.project.title if a.project else "?"
-        lines.append(t(lang, "admin_apps.line", id=a.id, user=html.escape(uname), project=html.escape(pname)))
+        lines.append(
+            t(lang, "admin_apps.line", id=a.id, user=html.escape(uname), project=html.escape(pname))
+        )
     kb = _apps_kb(lang, pending)
     await message.answer(
         "\n".join(lines),
@@ -62,7 +69,9 @@ async def applications_callback(query: CallbackQuery, db_user: User | None, sess
     if data == "apm:close":
         await query.message.edit_reply_markup(reply_markup=None)
         await query.answer()
-        await query.message.answer(t(lang, "common.menu_hint"), reply_markup=main_menu_kb(lang, db_user))
+        await query.message.answer(
+            t(lang, "common.menu_hint"), reply_markup=main_menu_kb(lang, db_user)
+        )
         return
     parts = data.split(":")
     if len(parts) != 3 or parts[1] not in ("y", "n"):
@@ -94,5 +103,13 @@ async def applications_callback(query: CallbackQuery, db_user: User | None, sess
         for a in pending:
             uname = a.user.full_name if a.user else "?"
             pname = a.project.title if a.project else "?"
-            lines.append(t(lang, "admin_apps.line", id=a.id, user=html.escape(uname), project=html.escape(pname)))
+            lines.append(
+                t(
+                    lang,
+                    "admin_apps.line",
+                    id=a.id,
+                    user=html.escape(uname),
+                    project=html.escape(pname),
+                )
+            )
         await query.message.edit_text("\n".join(lines), reply_markup=kb, parse_mode=ParseMode.HTML)

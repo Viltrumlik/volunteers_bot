@@ -7,6 +7,7 @@ from aiogram import Bot
 from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.config import get_settings
+from app.utils.urls import is_safe_button_url
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +22,11 @@ def parse_inline_buttons(raw: str | None) -> InlineKeyboardMarkup | None:
             continue
         text, url = line.split("|", 1)
         text, url = text.strip(), url.strip()
-        if text and url.startswith("http"):
+        # Only https:// and tg:// to non-internal hosts (defence-in-depth vs SSRF-style links).
+        if text and is_safe_button_url(url):
             rows.append([InlineKeyboardButton(text=text, url=url)])
+        elif text and url:
+            logger.warning("Broadcast button URL rejected: %.60s", url)
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 

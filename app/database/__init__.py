@@ -3,14 +3,14 @@ from app.database.models import FAQ, FAQCategory, LinkedGroup, Region, Suggestio
 from app.database.session import get_session_factory, init_db
 
 __all__ = [
-    "Base",
-    "User",
-    "Region",
-    "FAQCategory",
     "FAQ",
-    "Ticket",
-    "Suggestion",
+    "Base",
+    "FAQCategory",
     "LinkedGroup",
+    "Region",
+    "Suggestion",
+    "Ticket",
+    "User",
     "get_session_factory",
     "init_db",
 ]

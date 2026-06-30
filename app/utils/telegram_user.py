@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from aiogram.types import Message, User as TgUser
+from aiogram.types import Message
+from aiogram.types import User as TgUser
 
 
 def effective_telegram_user(message: Message, injected: TgUser | None) -> TgUser | None:

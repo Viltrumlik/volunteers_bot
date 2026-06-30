@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,9 +37,7 @@ class NewsRepository:
 
     async def mark_sending(self, news_id: int) -> None:
         await self.session.execute(
-            update(News)
-            .where(News.id == news_id)
-            .values(status=NewsStatus.sending.value)
+            update(News).where(News.id == news_id).values(status=NewsStatus.sending.value)
         )
 
     async def mark_completed(self, news_id: int, sent_ok: int, sent_fail: int) -> None:
@@ -50,7 +48,7 @@ class NewsRepository:
                 status=NewsStatus.completed.value,
                 sent_ok=sent_ok,
                 sent_fail=sent_fail,
-                finished_at=datetime.now(timezone.utc),
+                finished_at=datetime.now(UTC),
             )
         )
 
@@ -61,6 +59,6 @@ class NewsRepository:
             .values(
                 status=NewsStatus.failed.value,
                 error_message=err[:4000],
-                finished_at=datetime.now(timezone.utc),
+                finished_at=datetime.now(UTC),
             )
         )

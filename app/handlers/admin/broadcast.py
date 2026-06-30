@@ -60,14 +60,18 @@ async def broadcast_buttons(message: Message, state: FSMContext, db_user: User):
     await message.answer(t(db_user.language, "broadcast.confirm"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(BroadcastStates.confirm), Command("cancel"))
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(BroadcastStates.confirm), Command("cancel")
+)
 async def broadcast_cancel(message: Message, state: FSMContext, db_user: User):
     lang = db_user.language
     await state.clear()
     await message.answer(t(lang, "broadcast.cancelled"), reply_markup=main_menu_kb(lang, db_user))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(BroadcastStates.confirm), Command("yes"))
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(BroadcastStates.confirm), Command("yes")
+)
 async def broadcast_run(
     message: Message,
     state: FSMContext,
@@ -109,6 +113,8 @@ async def broadcast_run(
         await message.answer(t(lang, "broadcast.started"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(BroadcastStates.content), F.document)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(BroadcastStates.content), F.document
+)
 async def broadcast_doc_fallback(message: Message, db_user: User):
     await message.answer(t(db_user.language, "broadcast.send_photo"))

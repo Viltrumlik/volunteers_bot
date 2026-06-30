@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,13 +66,13 @@ class TicketRepository:
         message_id: int,
         thread_id: int | None = None,
     ) -> None:
-        vals: dict = {"admin_message_id": message_id}
+        vals: dict[str, object] = {"admin_message_id": message_id}
         if thread_id is not None:
             vals["admin_thread_id"] = thread_id
         await self.session.execute(update(Ticket).where(Ticket.id == ticket_id).values(**vals))
 
     async def mark_first_response_if_needed(self, ticket_id: int) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self.session.execute(
             update(Ticket)
             .where(Ticket.id == ticket_id, Ticket.first_response_at.is_(None))
@@ -83,7 +83,7 @@ class TicketRepository:
         await self.session.execute(
             update(Ticket)
             .where(Ticket.id == ticket_id)
-            .values(assigned_telegram_id=admin_telegram_id, updated_at=datetime.now(timezone.utc))
+            .values(assigned_telegram_id=admin_telegram_id, updated_at=datetime.now(UTC))
         )
 
     async def get_by_admin_root_message(self, message_id: int) -> Ticket | None:
@@ -93,7 +93,9 @@ class TicketRepository:
     async def get_by_admin_message_chain(self, message_ids: list[int]) -> Ticket | None:
         if not message_ids:
             return None
-        r = await self.session.execute(select(Ticket).where(Ticket.admin_message_id.in_(message_ids)))
+        r = await self.session.execute(
+            select(Ticket).where(Ticket.admin_message_id.in_(message_ids))
+        )
         tickets = list(r.scalars().all())
         if not tickets:
             return None
@@ -102,17 +104,15 @@ class TicketRepository:
         return tickets[0]
 
     async def set_status(self, ticket_id: int, status: str) -> bool:
-        vals: dict = {"status": status, "updated_at": datetime.now(timezone.utc)}
+        vals: dict[str, object] = {"status": status, "updated_at": datetime.now(UTC)}
         if status == TicketStatus.closed.value:
-            vals["closed_at"] = datetime.now(timezone.utc)
+            vals["closed_at"] = datetime.now(UTC)
         r = await self.session.execute(update(Ticket).where(Ticket.id == ticket_id).values(**vals))
         return r.rowcount > 0
 
     async def get(self, ticket_id: int) -> Ticket | None:
         r = await self.session.execute(
-            select(Ticket)
-            .where(Ticket.id == ticket_id)
-            .options(selectinload(Ticket.messages))
+            select(Ticket).where(Ticket.id == ticket_id).options(selectinload(Ticket.messages))
         )
         return r.scalar_one_or_none()
 

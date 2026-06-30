@@ -1,4 +1,3 @@
-import asyncio
 import html
 
 from aiogram import F, Router
@@ -10,8 +9,8 @@ from app.database.models import User
 from app.handlers.filters import IsRegistered
 from app.handlers.labels import label_set
 from app.i18n import t
-from app.keyboards.common import main_menu_kb
 from app.integrations.google_sheets_service import enqueue_log_application
+from app.keyboards.common import main_menu_kb
 from app.services.application_service import ApplicationService
 from app.services.project_service import ProjectService
 
@@ -29,7 +28,11 @@ def _projects_root_kb(lang: str, project_ids: list[tuple[int, str]]) -> InlineKe
 def _detail_kb(lang: str, project_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "projects.apply"), callback_data=f"upj:a:{project_id}")],
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "projects.apply"), callback_data=f"upj:a:{project_id}"
+                )
+            ],
             [
                 InlineKeyboardButton(text=t(lang, "common.back"), callback_data="upj:root"),
                 InlineKeyboardButton(text=t(lang, "common.back_menu"), callback_data="upj:close"),
@@ -38,7 +41,12 @@ def _detail_kb(lang: str, project_id: int) -> InlineKeyboardMarkup:
     )
 
 
-@router.message(F.chat.type == "private", IsRegistered(), StateFilter(None), F.text.in_(label_set("menu.projects")))
+@router.message(
+    F.chat.type == "private",
+    IsRegistered(),
+    StateFilter(None),
+    F.text.in_(label_set("menu.projects")),
+)
 async def open_projects(message: Message, db_user: User, session):
     lang = db_user.language
     projects = await ProjectService(session).list_active()
@@ -67,7 +75,9 @@ async def projects_callback(query: CallbackQuery, db_user: User | None, session)
     if action == "close":
         await query.message.edit_reply_markup(reply_markup=None)
         await query.answer()
-        await query.message.answer(t(lang, "common.menu_hint"), reply_markup=main_menu_kb(lang, db_user))
+        await query.message.answer(
+            t(lang, "common.menu_hint"), reply_markup=main_menu_kb(lang, db_user)
+        )
         return
     if action == "root":
         projects = await ProjectService(session).list_active()
@@ -88,7 +98,12 @@ async def projects_callback(query: CallbackQuery, db_user: User | None, session)
         if not p or not p.is_active:
             await query.answer(t(lang, "errors.generic"), show_alert=True)
             return
-        text = t(lang, "projects.detail", title=html.escape(p.title), description=html.escape(p.description))
+        text = t(
+            lang,
+            "projects.detail",
+            title=html.escape(p.title),
+            description=html.escape(p.description),
+        )
         await query.message.edit_text(
             text,
             reply_markup=_detail_kb(lang, p.id),

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from aiogram import F, Router
@@ -9,6 +8,7 @@ from aiogram.types import Message
 from app.database.models import Gender, User
 from app.handlers.filters import may_use_admin_tools
 from app.i18n import other_lang, t
+from app.integrations.google_sheets_service import enqueue_add_user
 from app.keyboards.common import (
     LANG_BTN_RU,
     LANG_BTN_UZ,
@@ -20,7 +20,6 @@ from app.keyboards.common import (
     registration_skip_bio_kb,
     remove_kb,
 )
-from app.integrations.google_sheets_service import enqueue_add_user
 from app.services.dynamic_keyboard import get_dynamic_keyboard
 from app.services.region_service import RegionService
 from app.services.user_service import UserService
@@ -37,7 +36,9 @@ async def _reply_no_regions(message: Message, lang: str, db_user: User | None) -
     tid = fu.id if fu else None
     is_admin = tid is not None and may_use_admin_tools(tid, db_user)
     lines = [t(lang, "regions.none_available")]
-    lines.append(t(lang, "regions.admin_hint_add_region") if is_admin else t(lang, "regions.user_try_later"))
+    lines.append(
+        t(lang, "regions.admin_hint_add_region") if is_admin else t(lang, "regions.user_try_later")
+    )
     await message.answer("\n\n".join(lines), reply_markup=remove_kb())
 
 
@@ -69,7 +70,9 @@ async def cmd_start(message: Message, state: FSMContext, db_user: User | None):
     await state.clear()
     if db_user:
         lang = db_user.language
-        await message.answer(t(lang, "start.welcome_back"), reply_markup=main_menu_kb(lang, db_user))
+        await message.answer(
+            t(lang, "start.welcome_back"), reply_markup=main_menu_kb(lang, db_user)
+        )
         return
     await state.set_state(RegistrationStates.language)
     await message.answer(t("uz", "start.pick_language"), reply_markup=language_pick_kb())
@@ -116,7 +119,9 @@ async def reg_age(message: Message, state: FSMContext, session, db_user: User | 
     else:
         age = validate_age_text(text)
         if age is None:
-            await message.answer(t(lang, "start.ask_age"), reply_markup=registration_skip_age_kb(lang))
+            await message.answer(
+                t(lang, "start.ask_age"), reply_markup=registration_skip_age_kb(lang)
+            )
             return
         await state.update_data(age=age)
     await state.set_state(RegistrationStates.region)
@@ -174,11 +179,15 @@ async def reg_bio(message: Message, state: FSMContext):
         await state.update_data(bio=None)
     else:
         if not text.strip():
-            await message.answer(t(lang, "start.ask_bio"), reply_markup=registration_skip_bio_kb(lang))
+            await message.answer(
+                t(lang, "start.ask_bio"), reply_markup=registration_skip_bio_kb(lang)
+            )
             return
         bio = validate_bio(text)
         if bio is None:
-            await message.answer(t(lang, "start.bio_too_long"), reply_markup=registration_skip_bio_kb(lang))
+            await message.answer(
+                t(lang, "start.bio_too_long"), reply_markup=registration_skip_bio_kb(lang)
+            )
             return
         await state.update_data(bio=bio)
     await state.set_state(RegistrationStates.photo)
@@ -199,13 +208,17 @@ async def reg_photo_skip(message: Message, state: FSMContext, session, tg_user):
     data = await state.get_data()
     lang = data.get("lang", "uz")
     if not _is_skip(message.text, lang):
-        await message.answer(t(lang, "start.ask_photo"), reply_markup=registration_skip_bio_kb(lang))
+        await message.answer(
+            t(lang, "start.ask_photo"), reply_markup=registration_skip_bio_kb(lang)
+        )
         return
     await state.update_data(photo_file_id=None)
     await _finalize_registration(message, state, session, tg_user, lang)
 
 
-async def _finalize_registration(message: Message, state: FSMContext, session, tg_user, lang: str) -> None:
+async def _finalize_registration(
+    message: Message, state: FSMContext, session, tg_user, lang: str
+) -> None:
     data = await state.get_data()
     actor = effective_telegram_user(message, tg_user)
     if actor is None:

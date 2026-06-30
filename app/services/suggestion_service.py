@@ -18,5 +18,7 @@ class SuggestionService:
 
     async def set_admin_message_id(self, suggestion_id: int, message_id: int) -> None:
         await self.session.execute(
-            update(Suggestion).where(Suggestion.id == suggestion_id).values(admin_message_id=message_id)
+            update(Suggestion)
+            .where(Suggestion.id == suggestion_id)
+            .values(admin_message_id=message_id)
         )

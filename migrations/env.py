@@ -1,4 +1,9 @@
-"""Alembic async environment. Run: alembic revision --autogenerate -m \"init\" && alembic upgrade head"""
+"""Alembic async environment.
+
+The database URL is taken from the app settings (``DATABASE_URL`` env var), never
+from ``alembic.ini`` — so credentials are never written to a tracked file.
+Run:  alembic revision --autogenerate -m "msg"  &&  alembic upgrade head
+"""
 
 from __future__ import annotations
 
@@ -10,11 +15,9 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import app.database.models  # noqa: F401  (register models on metadata)
 from app.config import get_settings
 from app.database.base import Base
-
-# noqa: F401 — register models on metadata
-import app.database.models  # noqa: F401, E402
 
 config = context.config
 if config.config_file_name is not None:
@@ -23,31 +26,37 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _async_url() -> str:
+    return get_settings().normalized_database_url()
+
+
 def run_migrations_offline() -> None:
-    settings = get_settings()
-    url = settings.database_url
-    if "+asyncpg" in url:
-        url = url.replace("postgresql+asyncpg", "postgresql", 1)
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
+    url = _async_url().replace("postgresql+asyncpg", "postgresql", 1)
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        compare_type=True,
+        render_as_batch=url.startswith("sqlite"),
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        render_as_batch=connection.dialect.name == "sqlite",
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 async def run_async_migrations() -> None:
-    settings = get_settings()
-    url = settings.database_url
-    if url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    elif url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
     connectable = async_engine_from_config(
-        {"sqlalchemy.url": url},
+        {"sqlalchemy.url": _async_url()},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

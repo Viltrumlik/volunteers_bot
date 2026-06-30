@@ -34,6 +34,10 @@ def main_menu_kb(lang: str, user: User | None) -> ReplyKeyboardMarkup:
             KeyboardButton(text=t(lang, "menu.support")),
             KeyboardButton(text=t(lang, "menu.suggestion")),
         ],
+        [
+            KeyboardButton(text=t(lang, "menu.shifts")),
+            KeyboardButton(text=t(lang, "menu.hours")),
+        ],
     ]
     if user and user.role in (UserRole.admin.value, UserRole.super_admin.value):
         rows.append(
@@ -48,7 +52,12 @@ def main_menu_kb(lang: str, user: User | None) -> ReplyKeyboardMarkup:
                 KeyboardButton(text=t(lang, "menu.projects_admin")),
             ]
         )
-        rows.append([KeyboardButton(text=t(lang, "menu.faq_admin"))])
+        rows.append(
+            [
+                KeyboardButton(text=t(lang, "menu.faq_admin")),
+                KeyboardButton(text=t(lang, "menu.events_admin")),
+            ]
+        )
     s = get_settings()
     super_ids = s.parsed_super_admin_ids()
     if user and (user.role == UserRole.super_admin.value or user.telegram_id in super_ids):
@@ -98,8 +107,12 @@ def region_admin_root_inline(lang: str) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text=t(lang, "admin.regions.add"), callback_data="regadm:add")],
             [
-                InlineKeyboardButton(text=t(lang, "admin.regions.edit"), callback_data="regadm:editlist"),
-                InlineKeyboardButton(text=t(lang, "admin.regions.delete"), callback_data="regadm:dellist"),
+                InlineKeyboardButton(
+                    text=t(lang, "admin.regions.edit"), callback_data="regadm:editlist"
+                ),
+                InlineKeyboardButton(
+                    text=t(lang, "admin.regions.delete"), callback_data="regadm:dellist"
+                ),
             ],
             [InlineKeyboardButton(text=t(lang, "admin.regions.list"), callback_data="regadm:list")],
             [InlineKeyboardButton(text=t(lang, "common.back_menu"), callback_data="regadm:close")],
@@ -116,8 +129,12 @@ def admin_panel_root_inline(lang: str, *, show_super: bool) -> InlineKeyboardMar
         [InlineKeyboardButton(text=t(lang, "admin.panel_broadcast"), callback_data="admpan:bc")],
     ]
     if show_super:
-        rows.append([InlineKeyboardButton(text=t(lang, "admin.panel_super"), callback_data="admpan:super")])
-    rows.append([InlineKeyboardButton(text=t(lang, "common.back_menu"), callback_data="admpan:close")])
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "admin.panel_super"), callback_data="admpan:super")]
+        )
+    rows.append(
+        [InlineKeyboardButton(text=t(lang, "common.back_menu"), callback_data="admpan:close")]
+    )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -145,10 +162,18 @@ def super_admin_user_actions(lang: str, telegram_id: int) -> InlineKeyboardMarku
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=t(lang, "admin.promote"), callback_data=f"sadm:adm:{telegram_id}"),
-                InlineKeyboardButton(text=t(lang, "admin.demote"), callback_data=f"sadm:user:{telegram_id}"),
+                InlineKeyboardButton(
+                    text=t(lang, "admin.promote"), callback_data=f"sadm:adm:{telegram_id}"
+                ),
+                InlineKeyboardButton(
+                    text=t(lang, "admin.demote"), callback_data=f"sadm:user:{telegram_id}"
+                ),
             ],
-            [InlineKeyboardButton(text=t(lang, "admin.super_promote"), callback_data=f"sadm:super:{telegram_id}")],
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "admin.super_promote"), callback_data=f"sadm:super:{telegram_id}"
+                )
+            ],
             [InlineKeyboardButton(text=t(lang, "common.back"), callback_data="sadm:back")],
         ]
     )
@@ -158,7 +183,11 @@ def users_page_kb(lang: str, page: int, pages: int) -> InlineKeyboardMarkup:
     nav: list[InlineKeyboardButton] = []
     if page > 1:
         nav.append(InlineKeyboardButton(text="«", callback_data=f"sadm:page:{page-1}"))
-    nav.append(InlineKeyboardButton(text=t(lang, "admin.page", page=page, pages=pages), callback_data="sadm:noop"))
+    nav.append(
+        InlineKeyboardButton(
+            text=t(lang, "admin.page", page=page, pages=pages), callback_data="sadm:noop"
+        )
+    )
     if page < pages:
         nav.append(InlineKeyboardButton(text="»", callback_data=f"sadm:page:{page+1}"))
     return InlineKeyboardMarkup(inline_keyboard=[nav])

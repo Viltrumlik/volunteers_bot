@@ -13,7 +13,6 @@ from app.keyboards.common import main_menu_kb
 from app.services.application_service import ApplicationService
 from app.services.region_service import RegionService
 
-
 router = Router(name="user_profile")
 
 
@@ -29,7 +28,12 @@ def _gender_display(lang: str, raw: str | None) -> str:
     return mapping.get(raw, raw)
 
 
-@router.message(F.chat.type == "private", IsRegistered(), StateFilter(None), F.text.in_(label_set("menu.profile")))
+@router.message(
+    F.chat.type == "private",
+    IsRegistered(),
+    StateFilter(None),
+    F.text.in_(label_set("menu.profile")),
+)
 async def show_profile(message: Message, db_user: User, session):
     lang = db_user.language
     rsvc = RegionService(session)

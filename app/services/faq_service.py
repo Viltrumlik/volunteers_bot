@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import FAQ
@@ -12,9 +12,7 @@ class FAQService:
 
     async def list_by_category_ordered(self, category_id: int) -> list[FAQ]:
         r = await self.session.execute(
-            select(FAQ)
-            .where(FAQ.category_id == category_id)
-            .order_by(FAQ.sort_order, FAQ.id)
+            select(FAQ).where(FAQ.category_id == category_id).order_by(FAQ.sort_order, FAQ.id)
         )
         return list(r.scalars().all())
 
@@ -30,7 +28,9 @@ class FAQService:
         question_ru: str | None,
         answer_ru: str | None,
     ) -> FAQ:
-        mx = await self.session.scalar(select(func.max(FAQ.sort_order)).where(FAQ.category_id == category_id))
+        mx = await self.session.scalar(
+            select(func.max(FAQ.sort_order)).where(FAQ.category_id == category_id)
+        )
         nxt = (mx or 0) + 1
         f = FAQ(
             category_id=category_id,

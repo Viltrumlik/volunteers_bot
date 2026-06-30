@@ -11,17 +11,15 @@ from app.database.models import User
 from app.handlers.filters import IsRegistered
 from app.handlers.labels import all_registered_menu_labels, label_set
 from app.i18n import t
+from app.infrastructure.cooldown import try_acquire
 from app.keyboards.common import main_menu_kb
 from app.services.suggestion_service import SuggestionService
 from app.states.forms import SuggestionStates
-from app.utils.cooldown import UserCooldown
 from app.utils.formatting import format_suggestion_header
 from app.utils.telegram_user import effective_telegram_user
 
 logger = logging.getLogger(__name__)
 router = Router(name="suggestion")
-
-_suggestion_cooldown = UserCooldown()
 
 
 @router.message(
@@ -38,8 +36,12 @@ async def suggestion_entry(message: Message, state: FSMContext, db_user: User):
     )
 
 
-@router.message(F.chat.type == "private", IsRegistered(), StateFilter(SuggestionStates.text), F.text)
-async def suggestion_body(message: Message, state: FSMContext, db_user: User, session, bot, tg_user):
+@router.message(
+    F.chat.type == "private", IsRegistered(), StateFilter(SuggestionStates.text), F.text
+)
+async def suggestion_body(
+    message: Message, state: FSMContext, db_user: User, session, bot, tg_user
+):
     settings = get_settings()
     lang = db_user.language
     sender = effective_telegram_user(message, tg_user)
@@ -54,7 +56,7 @@ async def suggestion_body(message: Message, state: FSMContext, db_user: User, se
         await state.clear()
         await message.answer(t(lang, "common.menu_hint"), reply_markup=main_menu_kb(lang, db_user))
         return
-    if _suggestion_cooldown.is_throttled(sender.id, settings.creation_cooldown_sec):
+    if not await try_acquire("suggestion", sender.id, settings.creation_cooldown_sec):
         await message.answer(t(lang, "errors.cooldown"))
         return
     svc = SuggestionService(session)
@@ -69,6 +71,5 @@ async def suggestion_body(message: Message, state: FSMContext, db_user: User, se
         logger.exception("Forward suggestion: %s", e)
         await message.answer(t(lang, "errors.generic"))
         return
-    _suggestion_cooldown.record(sender.id)
     await state.clear()
     await message.answer(t(lang, "suggestion.thanks"), reply_markup=main_menu_kb(lang, db_user))

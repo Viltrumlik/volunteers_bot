@@ -10,6 +10,7 @@ import time
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
+from aiogram.types import InlineKeyboardMarkup
 
 from app.config import get_settings
 from app.database.models import NewsDeliveryStatus
@@ -40,7 +41,7 @@ async def _send_one(
     *,
     text: str | None,
     photo_file_id: str | None,
-    markup,
+    markup: InlineKeyboardMarkup | None,
 ) -> None:
     if photo_file_id:
         await bot.send_photo(uid, photo_file_id, caption=text, reply_markup=markup)
@@ -54,7 +55,7 @@ async def _send_with_retries(
     *,
     text: str | None,
     photo_file_id: str | None,
-    markup,
+    markup: InlineKeyboardMarkup | None,
     max_retries: int,
     base_delay: float,
 ) -> tuple[bool, str | None, int]:
@@ -69,7 +70,7 @@ async def _send_with_retries(
             last_err = str(e)[:2000]
             if attempt >= max_retries:
                 break
-            delay = base_delay * (2**attempt) + random.uniform(0, 0.3)
+            delay = base_delay * (2**attempt) + random.uniform(0, 0.3)  # noqa: S311 (retry jitter, not crypto)
             await asyncio.sleep(delay)
         except Exception as e:
             last_err = str(e)[:2000]
@@ -80,7 +81,7 @@ async def _send_with_retries(
     return False, last_err, attempts
 
 
-async def _push_dlq(payload: dict) -> None:
+async def _push_dlq(payload: dict[str, object]) -> None:
     from app.infrastructure.redis_connection import get_redis
 
     settings = get_settings()

@@ -1,0 +1,139 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "volunteers-bot"
+version = "2.0.0"
+description = "Hardened aiogram 3 volunteer-management Telegram bot with shift scheduling and hours tracking"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Volunteers Bot maintainers" }]
+keywords = ["telegram", "bot", "aiogram", "volunteers", "scheduling"]
+
+dependencies = [
+    "aiogram==3.15.0",
+    "SQLAlchemy[asyncio]==2.0.36",
+    "asyncpg==0.30.0",
+    "aiosqlite==0.20.0",
+    "greenlet==3.1.1",
+    "pydantic==2.9.2",
+    "pydantic-settings==2.6.1",
+    "python-dotenv==1.0.1",
+    "redis==5.2.1",
+    "alembic==1.14.0",
+    "sentry-sdk==2.19.2",
+    "gspread==6.1.4",
+    "google-auth==2.37.0",
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "tzdata==2024.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.0",
+    "pytest-cov==6.0.0",
+    "fakeredis==2.26.1",
+    "lupa==2.2",
+    "httpx==0.28.1",
+    "ruff==0.8.4",
+    "mypy==1.14.0",
+    "bandit==1.8.0",
+    "pip-audit==2.7.3",
+    "types-redis==4.6.0.20241004",
+]
+
+[project.scripts]
+volunteers-bot = "app.main:run"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["locales/*.json"]
+
+# ---------------------------------------------------------------------------
+# Tooling
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF", "ASYNC", "S"]
+ignore = [
+    "S101",   # asserts are fine in tests
+    "B008",   # FastAPI Depends() default pattern
+    "RUF001", # ambiguous unicode (uz/ru locale strings)
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106", "S311"]
+"migrations/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+exclude = ["migrations/", "tests/"]
+
+[[tool.mypy.overrides]]
+module = ["gspread.*", "google.*", "fakeredis.*"]
+ignore_missing_imports = true
+
+# Strict typing is enforced on the business-logic core. The aiogram presentation
+# layer (handlers/keyboards/middlewares/FSM glue) receives dynamically-injected
+# kwargs and Message|InaccessibleMessage unions that don't fit --strict cleanly,
+# so it is type-checked leniently.
+[[tool.mypy.overrides]]
+module = [
+    "app.handlers.*",
+    "app.keyboards.*",
+    "app.middlewares.*",
+    "app.states.*",
+    "app.main",
+    "app.api.*",
+    "app.integrations.google_sheets_service",  # untyped gspread/google client glue
+]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+filterwarnings = ["error::DeprecationWarning:app.*"]
+
+[tool.coverage.run]
+branch = true
+# Gate coverage on the core logic; handlers/entrypoints are exercised by integration smoke.
+source = [
+    "app/services",
+    "app/repositories",
+    "app/infrastructure",
+    "app/utils",
+    "app/security",
+]
+# Operational worker glue (Redis BLPOP + Telegram send loops) is exercised by the
+# manual/integration smoke, not unit-covered; exclude from the line-coverage gate.
+omit = ["migrations/*", "app/services/news_dispatch_service.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "migrations"]
+# B101: asserts are used only for type-narrowing of module globals (not control flow).
+# B311: random is used for retry jitter / backoff, never for security tokens.
+skips = ["B101", "B311"]

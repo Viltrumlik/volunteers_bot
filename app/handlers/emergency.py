@@ -70,7 +70,10 @@ async def cmd_admin(message: Message, state: FSMContext, db_user: User | None, s
     lang = u.language
     fu = message.from_user
     show_super = _show_super_panel(fu.id if fu else None, u)
-    await message.answer(t(lang, "admin.panel_title"), reply_markup=admin_panel_root_inline(lang, show_super=show_super))
+    await message.answer(
+        t(lang, "admin.panel_title"),
+        reply_markup=admin_panel_root_inline(lang, show_super=show_super),
+    )
 
 
 @router.message(Command("add_region"), F.chat.type == "private", IsAdmin())
@@ -113,7 +116,9 @@ async def admpan_close(query: CallbackQuery, db_user: User | None, session):
     await query.message.edit_reply_markup(reply_markup=None)
     await query.answer()
     if u:
-        await query.message.answer(t(u.language, "common.menu_hint"), reply_markup=main_menu_kb(u.language, u))
+        await query.message.answer(
+            t(u.language, "common.menu_hint"), reply_markup=main_menu_kb(u.language, u)
+        )
 
 
 @router.callback_query(F.data == "admpan:reg", IsAdmin())
@@ -125,7 +130,9 @@ async def admpan_regions(query: CallbackQuery, db_user: User | None, session):
         await query.answer()
         return
     lang = u.language
-    await query.message.answer(t(lang, "admin.regions.title"), reply_markup=region_admin_root_inline(lang))
+    await query.message.answer(
+        t(lang, "admin.regions.title"), reply_markup=region_admin_root_inline(lang)
+    )
     await query.answer()
 
 

@@ -12,7 +12,9 @@ class ProjectRepository:
 
     async def list_active(self) -> list[Project]:
         r = await self.session.execute(
-            select(Project).where(Project.is_active.is_(True)).order_by(Project.sort_order, Project.id)
+            select(Project)
+            .where(Project.is_active.is_(True))
+            .order_by(Project.sort_order, Project.id)
         )
         return list(r.scalars().all())
 

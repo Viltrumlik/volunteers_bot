@@ -12,9 +12,7 @@ def may_use_admin_tools(telegram_id: int, db_user: User | None) -> bool:
     """DB admin/super_admin or any id listed in ADMIN_IDS / SUPER_ADMIN_IDS."""
     if get_settings().is_env_privileged_user(telegram_id):
         return True
-    if db_user and db_user.role in (UserRole.admin.value, UserRole.super_admin.value):
-        return True
-    return False
+    return bool(db_user and db_user.role in (UserRole.admin.value, UserRole.super_admin.value))
 
 
 def _telegram_id_from_event(event: TelegramObject) -> int | None:

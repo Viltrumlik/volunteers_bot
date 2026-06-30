@@ -15,7 +15,10 @@ async def enqueue(coro_factory: Callable[[], Awaitable[None]]) -> None:
     try:
         _queue.put_nowait(coro_factory)
     except asyncio.QueueFull:
-        logger.warning("Sheets outbox full; dropping write")
+        from app.monitoring.metrics import incr
+
+        logger.warning("Sheets outbox full (size=%s); dropping write", _queue.maxsize)
+        await incr("sheets_outbox_dropped")
 
 
 async def worker_loop() -> None:

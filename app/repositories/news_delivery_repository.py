@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -44,7 +44,7 @@ class NewsDeliveryRepository:
         return r.scalar_one_or_none()
 
     async def mark_sent(self, delivery_id: int) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self.session.execute(
             update(NewsDelivery)
             .where(NewsDelivery.id == delivery_id)
@@ -63,7 +63,7 @@ class NewsDeliveryRepository:
                 status=NewsDeliveryStatus.failed.value,
                 last_error=error[:4000],
                 attempts=attempts,
-                updated_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(UTC),
             )
         )
 
@@ -75,6 +75,6 @@ class NewsDeliveryRepository:
                 status=NewsDeliveryStatus.dead_letter.value,
                 last_error=error[:4000],
                 attempts=attempts,
-                updated_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(UTC),
             )
         )

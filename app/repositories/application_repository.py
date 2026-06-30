@@ -13,11 +13,15 @@ class ApplicationRepository:
 
     async def get_for_user_project(self, user_id: int, project_id: int) -> Application | None:
         r = await self.session.execute(
-            select(Application).where(Application.user_id == user_id, Application.project_id == project_id)
+            select(Application).where(
+                Application.user_id == user_id, Application.project_id == project_id
+            )
         )
         return r.scalar_one_or_none()
 
-    async def get_for_user_project_for_update(self, user_id: int, project_id: int) -> Application | None:
+    async def get_for_user_project_for_update(
+        self, user_id: int, project_id: int
+    ) -> Application | None:
         stmt = (
             select(Application)
             .where(Application.user_id == user_id, Application.project_id == project_id)

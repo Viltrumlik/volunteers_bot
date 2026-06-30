@@ -19,7 +19,9 @@ class FAQCategoryService:
         return list(r.scalars().all())
 
     async def list_all_ordered(self) -> list[FAQCategory]:
-        r = await self.session.execute(select(FAQCategory).order_by(FAQCategory.sort_order, FAQCategory.id))
+        r = await self.session.execute(
+            select(FAQCategory).order_by(FAQCategory.sort_order, FAQCategory.id)
+        )
         return list(r.scalars().all())
 
     async def get(self, category_id: int) -> FAQCategory | None:
@@ -29,12 +31,16 @@ class FAQCategoryService:
     async def create(self, name_uz: str, name_ru: str) -> FAQCategory:
         mx = await self.session.scalar(select(func.max(FAQCategory.sort_order)))
         nxt = (mx or 0) + 1
-        row = FAQCategory(name_uz=name_uz.strip(), name_ru=name_ru.strip(), is_active=True, sort_order=nxt)
+        row = FAQCategory(
+            name_uz=name_uz.strip(), name_ru=name_ru.strip(), is_active=True, sort_order=nxt
+        )
         self.session.add(row)
         await self.session.flush()
         return row
 
-    async def update_names(self, category_id: int, *, name_uz: str | None = None, name_ru: str | None = None) -> bool:
+    async def update_names(
+        self, category_id: int, *, name_uz: str | None = None, name_ru: str | None = None
+    ) -> bool:
         c = await self.get(category_id)
         if not c:
             return False

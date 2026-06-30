@@ -8,7 +8,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from app.database.models import User
 from app.handlers.filters import IsAdmin
 from app.i18n import t
-from app.keyboards.common import faq_admin_root_inline, main_menu_kb
+from app.keyboards.common import main_menu_kb
 from app.services.faq_category_service import FAQCategoryService
 from app.services.faq_service import FAQService
 from app.states.forms import FAQAdminStates, FAQCategoryAdminStates
@@ -38,7 +38,10 @@ async def faqadm_close(query: CallbackQuery, db_user: User, state: FSMContext):
     await state.clear()
     await query.message.edit_reply_markup(reply_markup=None)
     await query.answer()
-    await query.message.answer(t(db_user.language, "common.menu_hint"), reply_markup=main_menu_kb(db_user.language, db_user))
+    await query.message.answer(
+        t(db_user.language, "common.menu_hint"),
+        reply_markup=main_menu_kb(db_user.language, db_user),
+    )
 
 
 # --- FAQ categories ---
@@ -49,14 +52,18 @@ async def faqadm_addcat(query: CallbackQuery, state: FSMContext, db_user: User):
     await query.answer()
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQCategoryAdminStates.add_name_uz), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQCategoryAdminStates.add_name_uz), F.text
+)
 async def faqcat_add_uz(message: Message, state: FSMContext, db_user: User):
     await state.update_data(fcat_uz=message.text.strip())
     await state.set_state(FAQCategoryAdminStates.add_name_ru)
     await message.answer(t(db_user.language, "faq.cat_enter_ru"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQCategoryAdminStates.add_name_ru), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQCategoryAdminStates.add_name_ru), F.text
+)
 async def faqcat_add_ru(message: Message, state: FSMContext, db_user: User, session):
     lang = db_user.language
     data = await state.get_data()
@@ -79,11 +86,15 @@ async def faqadm_editcat(query: CallbackQuery, db_user: User, session, state: FS
         await query.answer(t(lang, "faq.no_categories"), show_alert=True)
         return
     await state.set_state(FAQCategoryAdminStates.edit_pick)
-    await query.message.answer(t(lang, "faq.cat_pick_edit"), reply_markup=_cat_rows(cats, lang, "faqced"))
+    await query.message.answer(
+        t(lang, "faq.cat_pick_edit"), reply_markup=_cat_rows(cats, lang, "faqced")
+    )
     await query.answer()
 
 
-@router.callback_query(F.data.startswith("faqced:"), IsAdmin(), StateFilter(FAQCategoryAdminStates.edit_pick))
+@router.callback_query(
+    F.data.startswith("faqced:"), IsAdmin(), StateFilter(FAQCategoryAdminStates.edit_pick)
+)
 async def faqced_pick(query: CallbackQuery, state: FSMContext, db_user: User):
     try:
         cid = int(query.data.split(":")[1])
@@ -96,19 +107,25 @@ async def faqced_pick(query: CallbackQuery, state: FSMContext, db_user: User):
     await query.answer()
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQCategoryAdminStates.edit_name_uz), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQCategoryAdminStates.edit_name_uz), F.text
+)
 async def faqcat_edit_uz(message: Message, state: FSMContext, db_user: User):
     await state.update_data(fcat_new_uz=message.text.strip())
     await state.set_state(FAQCategoryAdminStates.edit_name_ru)
     await message.answer(t(db_user.language, "faq.cat_new_ru"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQCategoryAdminStates.edit_name_ru), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQCategoryAdminStates.edit_name_ru), F.text
+)
 async def faqcat_edit_ru(message: Message, state: FSMContext, db_user: User, session):
     lang = db_user.language
     data = await state.get_data()
     cid = data["fcat_edit_id"]
-    ok = await FAQCategoryService(session).update_names(cid, name_uz=data["fcat_new_uz"], name_ru=message.text.strip())
+    ok = await FAQCategoryService(session).update_names(
+        cid, name_uz=data["fcat_new_uz"], name_ru=message.text.strip()
+    )
     await state.clear()
     await message.answer(
         t(lang, "faq.cat_updated") if ok else t(lang, "errors.generic"),
@@ -124,11 +141,15 @@ async def faqadm_delcat(query: CallbackQuery, db_user: User, session, state: FSM
         await query.answer(t(lang, "faq.no_categories"), show_alert=True)
         return
     await state.set_state(FAQCategoryAdminStates.delete_pick)
-    await query.message.answer(t(lang, "faq.cat_pick_delete"), reply_markup=_cat_rows(cats, lang, "faqcdel"))
+    await query.message.answer(
+        t(lang, "faq.cat_pick_delete"), reply_markup=_cat_rows(cats, lang, "faqcdel")
+    )
     await query.answer()
 
 
-@router.callback_query(F.data.startswith("faqcdel:"), IsAdmin(), StateFilter(FAQCategoryAdminStates.delete_pick))
+@router.callback_query(
+    F.data.startswith("faqcdel:"), IsAdmin(), StateFilter(FAQCategoryAdminStates.delete_pick)
+)
 async def faqcdel_do(query: CallbackQuery, state: FSMContext, db_user: User, session):
     lang = db_user.language
     try:
@@ -178,7 +199,9 @@ async def faqadm_newcat_pick(query: CallbackQuery, state: FSMContext, db_user: U
 
 
 # --- FAQ message FSM (add / edit answers) ---
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.add_question_uz), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.add_question_uz), F.text
+)
 async def faq_add_q_uz(message: Message, state: FSMContext, db_user: User):
     lang = db_user.language
     await state.update_data(faq_q_uz=message.text.strip())
@@ -186,7 +209,9 @@ async def faq_add_q_uz(message: Message, state: FSMContext, db_user: User):
     await message.answer(t(lang, "faq.enter_a_uz"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.add_answer_uz), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.add_answer_uz), F.text
+)
 async def faq_add_a_uz(message: Message, state: FSMContext, db_user: User):
     lang = db_user.language
     await state.update_data(faq_a_uz=message.text.strip())
@@ -194,7 +219,9 @@ async def faq_add_a_uz(message: Message, state: FSMContext, db_user: User):
     await message.answer(t(lang, "faq.enter_q_ru"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.add_question_ru), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.add_question_ru), F.text
+)
 async def faq_add_q_ru(message: Message, state: FSMContext, db_user: User):
     lang = db_user.language
     text = (message.text or "").strip()
@@ -206,7 +233,9 @@ async def faq_add_q_ru(message: Message, state: FSMContext, db_user: User):
     await message.answer(t(lang, "faq.enter_a_ru"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.add_answer_ru), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.add_answer_ru), F.text
+)
 async def faq_add_a_ru(message: Message, state: FSMContext, db_user: User, session):
     lang = db_user.language
     data = await state.get_data()
@@ -239,11 +268,15 @@ async def faqadm_editfaq(query: CallbackQuery, db_user: User, session, state: FS
         await query.answer(t(lang, "faq.no_categories"), show_alert=True)
         return
     await state.set_state(FAQAdminStates.edit_pick_category)
-    await query.message.answer(t(lang, "faq.pick_category_edit_faq"), reply_markup=_cat_rows(cats, lang, "faqadm:ecat"))
+    await query.message.answer(
+        t(lang, "faq.pick_category_edit_faq"), reply_markup=_cat_rows(cats, lang, "faqadm:ecat")
+    )
     await query.answer()
 
 
-@router.callback_query(F.data.startswith("faqadm:ecat:"), IsAdmin(), StateFilter(FAQAdminStates.edit_pick_category))
+@router.callback_query(
+    F.data.startswith("faqadm:ecat:"), IsAdmin(), StateFilter(FAQAdminStates.edit_pick_category)
+)
 async def faqadm_ecat(query: CallbackQuery, state: FSMContext, db_user: User, session):
     lang = db_user.language
     try:
@@ -261,7 +294,9 @@ async def faqadm_ecat(query: CallbackQuery, state: FSMContext, db_user: User, se
     await query.answer()
 
 
-@router.callback_query(F.data.startswith("faqed:"), IsAdmin(), StateFilter(FAQAdminStates.edit_pick))
+@router.callback_query(
+    F.data.startswith("faqed:"), IsAdmin(), StateFilter(FAQAdminStates.edit_pick)
+)
 async def faq_edit_pick(query: CallbackQuery, state: FSMContext, db_user: User):
     lang = db_user.language
     try:
@@ -275,14 +310,18 @@ async def faq_edit_pick(query: CallbackQuery, state: FSMContext, db_user: User):
     await query.answer()
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.edit_question), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.edit_question), F.text
+)
 async def faq_edit_q(message: Message, state: FSMContext, db_user: User):
     await state.update_data(faq_new_q=message.text.strip())
     await state.set_state(FAQAdminStates.edit_answer)
     await message.answer(t(db_user.language, "faq.new_answer"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.edit_answer), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(FAQAdminStates.edit_answer), F.text
+)
 async def faq_edit_a(message: Message, state: FSMContext, db_user: User, session):
     lang = db_user.language
     data = await state.get_data()
@@ -308,11 +347,15 @@ async def faqadm_delfaq(query: CallbackQuery, db_user: User, session, state: FSM
         await query.answer(t(lang, "faq.no_categories"), show_alert=True)
         return
     await state.set_state(FAQAdminStates.delete_pick_category)
-    await query.message.answer(t(lang, "faq.pick_category_delete_faq"), reply_markup=_cat_rows(cats, lang, "faqadm:dcat"))
+    await query.message.answer(
+        t(lang, "faq.pick_category_delete_faq"), reply_markup=_cat_rows(cats, lang, "faqadm:dcat")
+    )
     await query.answer()
 
 
-@router.callback_query(F.data.startswith("faqadm:dcat:"), IsAdmin(), StateFilter(FAQAdminStates.delete_pick_category))
+@router.callback_query(
+    F.data.startswith("faqadm:dcat:"), IsAdmin(), StateFilter(FAQAdminStates.delete_pick_category)
+)
 async def faqadm_dcat(query: CallbackQuery, state: FSMContext, db_user: User, session):
     lang = db_user.language
     try:
@@ -325,7 +368,9 @@ async def faqadm_dcat(query: CallbackQuery, state: FSMContext, db_user: User, se
         await query.answer(t(lang, "faq.empty_category"), show_alert=True)
         return
     await state.set_state(FAQAdminStates.delete_pick)
-    await query.message.answer(t(lang, "faq.pick_to_delete"), reply_markup=_faq_rows_del(faqs, lang))
+    await query.message.answer(
+        t(lang, "faq.pick_to_delete"), reply_markup=_faq_rows_del(faqs, lang)
+    )
     await query.answer()
 
 
@@ -337,7 +382,9 @@ def _faq_rows_del(faqs: list, lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-@router.callback_query(F.data.startswith("faqd:"), IsAdmin(), StateFilter(FAQAdminStates.delete_pick))
+@router.callback_query(
+    F.data.startswith("faqd:"), IsAdmin(), StateFilter(FAQAdminStates.delete_pick)
+)
 async def faq_delete_do(query: CallbackQuery, state: FSMContext, db_user: User, session):
     lang = db_user.language
     try:

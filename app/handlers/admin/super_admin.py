@@ -12,6 +12,8 @@ from app.handlers.filters import IsRegistered, IsSuperAdmin
 from app.handlers.labels import label_set
 from app.i18n import t
 from app.keyboards.common import super_admin_user_actions, users_page_kb
+from app.logging_config import mask_user_id
+from app.services import audit_service
 from app.services.user_service import UserService
 from app.states.forms import SuperAdminStates
 
@@ -19,7 +21,9 @@ logger = logging.getLogger(__name__)
 router = Router(name="super_admin")
 
 
-async def _build_list_markup(session, state: FSMContext, db_user: User, page: int) -> tuple[str, InlineKeyboardMarkup]:
+async def _build_list_markup(
+    session, state: FSMContext, db_user: User, page: int
+) -> tuple[str, InlineKeyboardMarkup]:
     data = await state.get_data()
     q = data.get("sadm_q")
     users, pages = await UserService(session).list_users_page(page=page, per_page=6, query=q)
@@ -33,10 +37,18 @@ async def _build_list_markup(session, state: FSMContext, db_user: User, page: in
         rows = []
         for u in users:
             label = f"{u.full_name[:26]} · {u.telegram_id}"
-            rows.append([InlineKeyboardButton(text=label[:64], callback_data=f"sadm:u:{u.telegram_id}")])
+            rows.append(
+                [InlineKeyboardButton(text=label[:64], callback_data=f"sadm:u:{u.telegram_id}")]
+            )
         text = "\n".join(lines)
     rows.extend(users_page_kb(lang, page, pages).inline_keyboard)
-    rows.append([InlineKeyboardButton(text="🔍 " + t(lang, "admin.search_prompt")[:40], callback_data="sadm:search")])
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="🔍 " + t(lang, "admin.search_prompt")[:40], callback_data="sadm:search"
+            )
+        ]
+    )
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -139,8 +151,18 @@ async def super_set_admin(query: CallbackQuery, session, db_user: User):
         await query.answer("env super", show_alert=True)
         return
     await UserService(session).set_role(tid, UserRole.admin.value)
+    await audit_service.record(
+        session,
+        actor_telegram_id=query.from_user.id,
+        action="role_set",
+        target_type="user",
+        target_id=tid,
+        summary="-> admin",
+    )
     await query.answer(t(db_user.language, "admin.role_updated"))
-    logger.info("Promoted to admin: %s by %s", tid, query.from_user.id)
+    logger.info(
+        "role->admin target=%s actor=%s", mask_user_id(tid), mask_user_id(query.from_user.id)
+    )
 
 
 @router.callback_query(F.data.startswith("sadm:user:"), IsSuperAdmin())
@@ -153,8 +175,18 @@ async def super_set_user(query: CallbackQuery, session, db_user: User):
         await query.answer("env super", show_alert=True)
         return
     await UserService(session).set_role(tid, UserRole.user.value)
+    await audit_service.record(
+        session,
+        actor_telegram_id=query.from_user.id,
+        action="role_set",
+        target_type="user",
+        target_id=tid,
+        summary="-> user",
+    )
     await query.answer(t(db_user.language, "admin.role_updated"))
-    logger.info("Demoted to user: %s by %s", tid, query.from_user.id)
+    logger.info(
+        "role->user target=%s actor=%s", mask_user_id(tid), mask_user_id(query.from_user.id)
+    )
 
 
 @router.callback_query(F.data.startswith("sadm:super:"), IsSuperAdmin())
@@ -164,5 +196,15 @@ async def super_set_super(query: CallbackQuery, session, db_user: User):
         await query.answer("—", show_alert=True)
         return
     await UserService(session).set_role(tid, UserRole.super_admin.value)
+    await audit_service.record(
+        session,
+        actor_telegram_id=query.from_user.id,
+        action="role_set",
+        target_type="user",
+        target_id=tid,
+        summary="-> super_admin",
+    )
     await query.answer(t(db_user.language, "admin.role_updated"))
-    logger.info("Promoted to super_admin: %s by %s", tid, query.from_user.id)
+    logger.info(
+        "role->super target=%s actor=%s", mask_user_id(tid), mask_user_id(query.from_user.id)
+    )

@@ -10,12 +10,12 @@ from app.states.forms import (
 )
 
 __all__ = [
-    "RegistrationStates",
-    "SupportStates",
-    "SuggestionStates",
-    "RegionAdminStates",
-    "FAQCategoryAdminStates",
-    "FAQAdminStates",
     "BroadcastStates",
+    "FAQAdminStates",
+    "FAQCategoryAdminStates",
+    "RegionAdminStates",
+    "RegistrationStates",
+    "SuggestionStates",
     "SuperAdminStates",
+    "SupportStates",
 ]

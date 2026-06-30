@@ -12,11 +12,13 @@ Tabs: Users, Applications, Tickets (headers created automatically).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import time
+from collections.abc import Callable
 from functools import lru_cache
-from typing import Any, Callable
+from typing import Any
 
 from app.config import get_settings
 
@@ -39,9 +41,11 @@ TICKETS_HEADERS = ["User", "Type", "Status", "Created At"]
 
 @lru_cache
 def _spreadsheet():
-    path = (get_settings().google_credentials_path or "").strip()
-    sid = (get_settings().google_sheet_id or "").strip()
-    if not path or not sid:
+    settings = get_settings()
+    sid = (settings.google_sheet_id or "").strip()
+    inline = settings.google_credentials_json.get_secret_value().strip()
+    path = (settings.google_credentials_path or "").strip()
+    if not sid or not (inline or path):
         return None
     try:
         import gspread
@@ -51,11 +55,16 @@ def _spreadsheet():
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive",
         ]
-        creds = Credentials.from_service_account_file(path, scopes=scopes)
+        # Prefer inline JSON (secret manager / env) over an on-disk path.
+        if inline:
+            creds = Credentials.from_service_account_info(json.loads(inline), scopes=scopes)
+        else:
+            creds = Credentials.from_service_account_file(path, scopes=scopes)
         gc = gspread.authorize(creds)
         return gc.open_by_key(sid)
-    except Exception as e:
-        logger.warning("Google Sheets client init failed: %s", e)
+    except Exception:
+        # Do not log the exception detail — it can contain the key path / SA email.
+        logger.warning("Google Sheets client init failed (check credentials/sheet id)")
         return None
 
 
@@ -66,7 +75,7 @@ def _retry(fn: Callable[[], Any], max_attempts: int = 4) -> Any:
             return fn()
         except Exception as e:
             last = e
-            time.sleep(0.5 * (2**i) + random.uniform(0, 0.2))
+            time.sleep(0.5 * (2**i) + random.uniform(0, 0.2))  # noqa: S311 (retry jitter, not crypto)
     if last:
         raise last
 

@@ -18,7 +18,9 @@ class TicketService:
         ticket_type: str = "help",
         priority: str | None = None,
     ) -> Ticket:
-        return await self._repo.create(user.id, body_text, ticket_type=ticket_type, priority=priority)
+        return await self._repo.create(
+            user.id, body_text, ticket_type=ticket_type, priority=priority
+        )
 
     async def add_admin_message(
         self,

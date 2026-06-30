@@ -25,17 +25,27 @@ def _region_rows(regions: list, lang: str, prefix: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(None), F.text.in_(label_set("menu.regions_admin")))
+@router.message(
+    F.chat.type == "private",
+    IsAdmin(),
+    StateFilter(None),
+    F.text.in_(label_set("menu.regions_admin")),
+)
 async def regions_admin_entry(message: Message, db_user: User):
     lang = db_user.language
-    await message.answer(t(lang, "admin.regions.title"), reply_markup=region_admin_root_inline(lang))
+    await message.answer(
+        t(lang, "admin.regions.title"), reply_markup=region_admin_root_inline(lang)
+    )
 
 
 @router.callback_query(F.data == "regadm:close", IsAdmin())
 async def regadm_close(query: CallbackQuery, db_user: User):
     await query.message.edit_reply_markup(reply_markup=None)
     await query.answer()
-    await query.message.answer(t(db_user.language, "common.menu_hint"), reply_markup=main_menu_kb(db_user.language, db_user))
+    await query.message.answer(
+        t(db_user.language, "common.menu_hint"),
+        reply_markup=main_menu_kb(db_user.language, db_user),
+    )
 
 
 @router.callback_query(F.data == "regadm:add", IsAdmin())
@@ -45,14 +55,18 @@ async def regadm_add(query: CallbackQuery, state: FSMContext, db_user: User):
     await query.answer()
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(RegionAdminStates.add_name_uz), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(RegionAdminStates.add_name_uz), F.text
+)
 async def regadm_add_uz(message: Message, state: FSMContext, db_user: User):
     await state.update_data(reg_uz=message.text.strip())
     await state.set_state(RegionAdminStates.add_name_ru)
     await message.answer(t(db_user.language, "admin.regions.enter_ru"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(RegionAdminStates.add_name_ru), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(RegionAdminStates.add_name_ru), F.text
+)
 async def regadm_add_ru(message: Message, state: FSMContext, db_user: User, session):
     lang = db_user.language
     uz = (await state.get_data()).get("reg_uz", "")
@@ -75,11 +89,15 @@ async def regadm_edit_list(query: CallbackQuery, db_user: User, session, state: 
         await query.answer(t(lang, "admin.regions.empty"), show_alert=True)
         return
     await state.set_state(RegionAdminStates.edit_pick)
-    await query.message.answer(t(lang, "admin.regions.pick_edit"), reply_markup=_region_rows(regs, lang, "reged"))
+    await query.message.answer(
+        t(lang, "admin.regions.pick_edit"), reply_markup=_region_rows(regs, lang, "reged")
+    )
     await query.answer()
 
 
-@router.callback_query(F.data.startswith("reged:"), IsAdmin(), StateFilter(RegionAdminStates.edit_pick))
+@router.callback_query(
+    F.data.startswith("reged:"), IsAdmin(), StateFilter(RegionAdminStates.edit_pick)
+)
 async def regadm_edit_pick(query: CallbackQuery, state: FSMContext, db_user: User):
     try:
         rid = int(query.data.split(":")[1])
@@ -92,19 +110,25 @@ async def regadm_edit_pick(query: CallbackQuery, state: FSMContext, db_user: Use
     await query.answer()
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(RegionAdminStates.edit_name_uz), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(RegionAdminStates.edit_name_uz), F.text
+)
 async def regadm_edit_uz(message: Message, state: FSMContext, db_user: User):
     await state.update_data(reg_new_uz=message.text.strip())
     await state.set_state(RegionAdminStates.edit_name_ru)
     await message.answer(t(db_user.language, "admin.regions.new_ru"))
 
 
-@router.message(F.chat.type == "private", IsAdmin(), StateFilter(RegionAdminStates.edit_name_ru), F.text)
+@router.message(
+    F.chat.type == "private", IsAdmin(), StateFilter(RegionAdminStates.edit_name_ru), F.text
+)
 async def regadm_edit_ru(message: Message, state: FSMContext, db_user: User, session):
     lang = db_user.language
     data = await state.get_data()
     rid = data["reg_edit_id"]
-    ok = await RegionService(session).update_names(rid, name_uz=data["reg_new_uz"], name_ru=message.text.strip())
+    ok = await RegionService(session).update_names(
+        rid, name_uz=data["reg_new_uz"], name_ru=message.text.strip()
+    )
     await state.clear()
     await message.answer(
         t(lang, "admin.regions.updated") if ok else t(lang, "errors.generic"),
@@ -120,11 +144,15 @@ async def regadm_del_list(query: CallbackQuery, db_user: User, session, state: F
         await query.answer(t(lang, "admin.regions.empty"), show_alert=True)
         return
     await state.set_state(RegionAdminStates.delete_pick)
-    await query.message.answer(t(lang, "admin.regions.pick_delete"), reply_markup=_region_rows(regs, lang, "regdel"))
+    await query.message.answer(
+        t(lang, "admin.regions.pick_delete"), reply_markup=_region_rows(regs, lang, "regdel")
+    )
     await query.answer()
 
 
-@router.callback_query(F.data.startswith("regdel:"), IsAdmin(), StateFilter(RegionAdminStates.delete_pick))
+@router.callback_query(
+    F.data.startswith("regdel:"), IsAdmin(), StateFilter(RegionAdminStates.delete_pick)
+)
 async def regadm_del_do(query: CallbackQuery, state: FSMContext, db_user: User, session):
     lang = db_user.language
     try:
@@ -152,5 +180,7 @@ async def regadm_list(query: CallbackQuery, db_user: User, session):
     for r in regs:
         st = "✓" if r.is_active else "✗"
         lines.append(f"{st} <code>{r.id}</code> {r.name_uz} / {r.name_ru}")
-    await query.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=main_menu_kb(lang, db_user))
+    await query.message.answer(
+        "\n".join(lines), parse_mode="HTML", reply_markup=main_menu_kb(lang, db_user)
+    )
     await query.answer()

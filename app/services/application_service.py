@@ -43,7 +43,9 @@ class ApplicationService:
             return False, "admin_apps.not_found"
         if app.status != ApplicationStatus.pending.value:
             return False, "admin_apps.not_pending"
-        app.status = ApplicationStatus.approved.value if approve else ApplicationStatus.rejected.value
+        app.status = (
+            ApplicationStatus.approved.value if approve else ApplicationStatus.rejected.value
+        )
         u = app.user
         if approve and u and u.role == UserRole.user.value:
             u.role = UserRole.volunteer.value

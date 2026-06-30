@@ -63,3 +63,26 @@ class BroadcastStates(StatesGroup):
 
 class SuperAdminStates(StatesGroup):
     search_query = State()
+
+
+class AdminEventStates(StatesGroup):
+    title = State()
+    description = State()
+    location = State()
+    region = State()
+    tz = State()
+    starts_at = State()
+    ends_at = State()
+    capacity = State()
+    confirm = State()
+
+
+class AdminEventEditStates(StatesGroup):
+    # Single-field edit; the target field + event id live in FSM data.
+    value = State()
+    value2 = State()  # second value for time edits (ends_at)
+
+
+class AdminHoursAdjustStates(StatesGroup):
+    minutes = State()
+    note = State()

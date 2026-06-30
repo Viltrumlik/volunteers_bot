@@ -9,7 +9,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import FAQ, FAQCategory, Region

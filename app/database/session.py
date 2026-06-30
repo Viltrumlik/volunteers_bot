@@ -1,21 +1,30 @@
-"""Async SQLAlchemy engine + session factory. Schema changes only via Alembic — no create_all."""
+"""Async SQLAlchemy engine + session factory.
+
+Schema changes happen only via Alembic (no ``create_all`` at startup).
+The URL is normalized once in :meth:`Settings.normalized_database_url`.
+"""
 
 from __future__ import annotations
 
 import logging
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.config import get_settings
-from app.database.base import Base
 
 logger = logging.getLogger(__name__)
 
-_engine = None
+_engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
-def get_engine():
+def get_engine() -> AsyncEngine:
     """Exposed for Alembic / health checks."""
     get_session_factory()
     assert _engine is not None
@@ -25,42 +34,42 @@ def get_engine():
 def get_session_factory() -> async_sessionmaker[AsyncSession]:
     global _engine, _session_factory
     if _session_factory is None:
-        settings = get_settings()
-        url = settings.database_url
-        if url.startswith("postgresql://"):
-            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        elif url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
-        connect_args: dict = {}
+        url = get_settings().normalized_database_url()
+        connect_args: dict[str, object] = {}
+        pool_kwargs: dict[str, object] = {}
         if "sqlite" in url:
             connect_args["check_same_thread"] = False
-        pool_kwargs: dict = {}
         if "postgresql" in url:
-            pool_kwargs["pool_pre_ping"] = True
-            pool_kwargs["pool_size"] = 10
-            pool_kwargs["max_overflow"] = 20
-        _engine = create_async_engine(
-            url,
-            echo=False,
-            connect_args=connect_args,
-            **pool_kwargs,
-        )
-        _session_factory = async_sessionmaker(
-            _engine,
-            expire_on_commit=False,
-            autoflush=False,
-        )
-        logger.info("Database engine created for URL scheme: %s", url.split(":")[0])
+            pool_kwargs.update(pool_pre_ping=True, pool_size=10, max_overflow=20)
+        _engine = create_async_engine(url, echo=False, connect_args=connect_args, **pool_kwargs)
+        _session_factory = async_sessionmaker(_engine, expire_on_commit=False, autoflush=False)
+        logger.info("Database engine created (scheme=%s)", url.split(":", 1)[0])
     return _session_factory
 
 
+async def check_database() -> None:
+    """Fail-fast connectivity probe used at startup."""
+    factory = get_session_factory()
+    async with factory() as session:
+        await session.execute(text("SELECT 1"))
+
+
 async def init_db() -> None:
-    """Bootstrap seed data only. Tables must exist (`alembic upgrade head`)."""
-    get_session_factory()
+    """Seed bootstrap defaults. Tables must already exist (``alembic upgrade head``)."""
     factory = get_session_factory()
     async with factory() as session:
         from app.database.bootstrap import bootstrap_defaults
 
         await bootstrap_defaults(session)
         await session.commit()
-    logger.info("Database bootstrap completed (migrations are applied separately)")
+    logger.info("Database bootstrap completed (migrations applied separately)")
+
+
+async def dispose_engine() -> None:
+    """Close the connection pool on shutdown."""
+    global _engine, _session_factory
+    if _engine is not None:
+        await _engine.dispose()
+        logger.info("Database engine disposed")
+    _engine = None
+    _session_factory = None

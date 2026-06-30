@@ -12,9 +12,7 @@ class RegionService:
 
     async def list_active_ordered(self) -> list[Region]:
         r = await self.session.execute(
-            select(Region)
-            .where(Region.is_active.is_(True))
-            .order_by(Region.sort_order, Region.id)
+            select(Region).where(Region.is_active.is_(True)).order_by(Region.sort_order, Region.id)
         )
         return list(r.scalars().all())
 
@@ -29,12 +27,16 @@ class RegionService:
     async def create(self, name_uz: str, name_ru: str) -> Region:
         mx = await self.session.scalar(select(func.max(Region.sort_order)))
         nxt = (mx or 0) + 1
-        row = Region(name_uz=name_uz.strip(), name_ru=name_ru.strip(), is_active=True, sort_order=nxt)
+        row = Region(
+            name_uz=name_uz.strip(), name_ru=name_ru.strip(), is_active=True, sort_order=nxt
+        )
         self.session.add(row)
         await self.session.flush()
         return row
 
-    async def update_names(self, region_id: int, *, name_uz: str | None = None, name_ru: str | None = None) -> bool:
+    async def update_names(
+        self, region_id: int, *, name_uz: str | None = None, name_ru: str | None = None
+    ) -> bool:
         reg = await self.get(region_id)
         if not reg:
             return False
@@ -46,7 +48,9 @@ class RegionService:
         return True
 
     async def set_active(self, region_id: int, active: bool) -> bool:
-        r = await self.session.execute(update(Region).where(Region.id == region_id).values(is_active=active))
+        r = await self.session.execute(
+            update(Region).where(Region.id == region_id).values(is_active=active)
+        )
         return r.rowcount > 0
 
     async def resolve_by_label(self, label: str, language: str) -> Region | None:

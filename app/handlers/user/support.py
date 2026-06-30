@@ -11,20 +11,18 @@ from app.database.models import User
 from app.handlers.filters import IsRegistered
 from app.handlers.labels import all_registered_menu_labels, label_set
 from app.i18n import t
-from app.keyboards.common import main_menu_kb
+from app.infrastructure.cooldown import try_acquire
 from app.integrations.google_sheets_service import enqueue_log_ticket
+from app.keyboards.common import main_menu_kb
 from app.monitoring.metrics import incr, incr_daily_counter
 from app.services.ticket_service import TicketService
 from app.states.forms import SupportStates
-from app.utils.cooldown import UserCooldown
 from app.utils.formatting import format_ticket_header
 from app.utils.sanitize import strip_invisible
 from app.utils.telegram_user import effective_telegram_user
 
 logger = logging.getLogger(__name__)
 router = Router(name="support")
-
-_support_cooldown = UserCooldown()
 
 MAX_USER_MEDIA_BYTES = 10 * 1024 * 1024
 
@@ -50,12 +48,19 @@ async def support_entry(message: Message, state: FSMContext, db_user: User):
     )
 
 
-@router.message(F.chat.type == "private", IsRegistered(), StateFilter(SupportStates.message), F.text.startswith("/"))
+@router.message(
+    F.chat.type == "private",
+    IsRegistered(),
+    StateFilter(SupportStates.message),
+    F.text.startswith("/"),
+)
 async def support_ignore_commands(message: Message, db_user: User):
     await message.answer(t(db_user.language, "support.prompt"))
 
 
-@router.message(F.chat.type == "private", IsRegistered(), StateFilter(SupportStates.message), F.text)
+@router.message(
+    F.chat.type == "private", IsRegistered(), StateFilter(SupportStates.message), F.text
+)
 async def support_text(message: Message, state: FSMContext, db_user: User, session, bot, tg_user):
     settings = get_settings()
     lang = db_user.language
@@ -68,7 +73,7 @@ async def support_text(message: Message, state: FSMContext, db_user: User, sessi
         await state.clear()
         await message.answer(t(lang, "common.menu_hint"), reply_markup=main_menu_kb(lang, db_user))
         return
-    if _support_cooldown.is_throttled(sender.id, settings.creation_cooldown_sec):
+    if not await try_acquire("ticket", sender.id, settings.creation_cooldown_sec):
         await message.answer(t(lang, "errors.cooldown"))
         return
     ts = TicketService(session)
@@ -90,12 +95,13 @@ async def support_text(message: Message, state: FSMContext, db_user: User, sessi
         logger.exception("Forward ticket to admin group: %s", e)
         await message.answer(t(lang, "errors.generic"))
         return
-    _support_cooldown.record(sender.id)
     await state.clear()
     await message.answer(t(lang, "support.sent"), reply_markup=main_menu_kb(lang, db_user))
 
 
-@router.message(F.chat.type == "private", IsRegistered(), StateFilter(SupportStates.message), F.photo)
+@router.message(
+    F.chat.type == "private", IsRegistered(), StateFilter(SupportStates.message), F.photo
+)
 async def support_photo(message: Message, state: FSMContext, db_user: User, session, bot, tg_user):
     settings = get_settings()
     lang = db_user.language
@@ -103,7 +109,7 @@ async def support_photo(message: Message, state: FSMContext, db_user: User, sess
     if sender is None:
         await message.answer(t(lang, "errors.generic"))
         return
-    if _support_cooldown.is_throttled(sender.id, settings.creation_cooldown_sec):
+    if not await try_acquire("ticket", sender.id, settings.creation_cooldown_sec):
         await message.answer(t(lang, "errors.cooldown"))
         return
     ph = message.photo[-1] if message.photo else None
@@ -131,7 +137,6 @@ async def support_photo(message: Message, state: FSMContext, db_user: User, sess
         logger.exception("Forward ticket photo: %s", e)
         await message.answer(t(lang, "errors.generic"))
         return
-    _support_cooldown.record(sender.id)
     await state.clear()
     await message.answer(t(lang, "support.sent"), reply_markup=main_menu_kb(lang, db_user))
 
@@ -143,17 +148,19 @@ async def support_photo(message: Message, state: FSMContext, db_user: User, sess
     ~F.text,
     ~F.photo,
 )
-async def support_other_media(message: Message, state: FSMContext, db_user: User, session, bot, tg_user):
+async def support_other_media(
+    message: Message, state: FSMContext, db_user: User, session, bot, tg_user
+):
     settings = get_settings()
     lang = db_user.language
     sender = effective_telegram_user(message, tg_user)
     if sender is None:
         await message.answer(t(lang, "errors.generic"))
         return
-    if _support_cooldown.is_throttled(sender.id, settings.creation_cooldown_sec):
+    if not await try_acquire("ticket", sender.id, settings.creation_cooldown_sec):
         await message.answer(t(lang, "errors.cooldown"))
         return
-    cap = strip_invisible(((message.caption or "").strip() or f"[{message.content_type}]"))[:4096]
+    cap = strip_invisible((message.caption or "").strip() or f"[{message.content_type}]")[:4096]
     ts = TicketService(session)
     ticket = await ts.create(db_user, cap)
     await session.flush()
@@ -186,6 +193,5 @@ async def support_other_media(message: Message, state: FSMContext, db_user: User
             logger.exception("Forward ticket (fallback): %s", e2)
             await message.answer(t(lang, "errors.generic"))
             return
-    _support_cooldown.record(sender.id)
     await state.clear()
     await message.answer(t(lang, "support.sent"), reply_markup=main_menu_kb(lang, db_user))

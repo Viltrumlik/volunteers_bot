@@ -1,8 +1,11 @@
+# Runtime dependencies (mirror of [project.dependencies] in pyproject.toml).
+# For development install the package with extras instead:  pip install -e ".[dev]"
 aiogram==3.15.0
 SQLAlchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 aiosqlite==0.20.0
 greenlet==3.1.1
+pydantic==2.9.2
 pydantic-settings==2.6.1
 python-dotenv==1.0.1
 redis==5.2.1
@@ -12,3 +15,4 @@ gspread==6.1.4
 google-auth==2.37.0
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
+tzdata==2024.2
