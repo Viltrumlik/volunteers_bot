@@ -1,79 +1,217 @@
 # Volunteers Telegram Bot
 
-Production-oriented volunteer management bot built with **Python 3.11+**, **aiogram 3**, and **SQLAlchemy 2** (async). PostgreSQL is supported via `DATABASE_URL`; SQLite is the default for local runs.
+A volunteer management bot for Telegram, built with **Python 3.11+**, **aiogram 3**
+and async **SQLAlchemy 2**. Volunteers register, browse and apply to projects,
+read the FAQ and contact support; admins manage projects, applications, regions
+and FAQ, answer support tickets from a shared admin group and send broadcasts.
+The interface is available in Uzbek and Russian. SQLite is the default database
+for local runs; PostgreSQL is supported via `DATABASE_URL`. Redis is required.
 
 ## Features
 
-- Registration (name, contact, optional age, region) with FSM
-- FAQ stored in DB; admins add/edit/delete; users browse via inline keyboard
-- Support tickets: user messages go to one admin group; admins **reply** to the bot post to reach the user; `/close_<id>` closes tickets
-- Broadcasts (text or photo, optional URL buttons) with batching
-- Suggestions stored in DB and forwarded to the admin group
-- Group commands: `/help`, `/volunteer_info`, `/link_group` (bot admins)
-- Super-admin panel: list/search users, promote/demote admins (env super-admins cannot be demoted below env level)
-- Uzbek / Russian UI strings
-- DB session middleware, per-user rate limiting, creation cooldown for tickets/suggestions, centralized logging, global error handler
+**For volunteers (private chat)**
 
-## Layout
+- Registration with FSM: language (Uzbek / Russian), full name, age (optional),
+  region (from an admin-managed list), gender, bio (optional), photo (optional)
+- Projects: list active projects, view details and apply
+- Profile: personal data and the status of your applications
+- FAQ grouped by category, browsed with inline keyboards
+- Support tickets (text, photo or other media) delivered to the admin group;
+  admin replies are copied back to the volunteer
+- Suggestions stored in the database and forwarded to the admin group
+- Statistics: total and 7-day active users
+- Language switch with `/lang` or `/language`
 
-- `app/handlers/` — routers (commands, callbacks, FSM steps)
-- `app/services/` — business logic
-- `app/database/` — models and async session
-- `app/middlewares/` — DB transaction, user context, rate limit
-- `app/states/` — FSM groups
-- `app/locales/` — `uz.json`, `ru.json`
-- `schema.sql` — reference DDL
+**For admins**
 
-## Setup
+- Admin panel (`/admin`) with regions, FAQ, broadcast and — for super-admins —
+  user management
+- Projects: create projects (title and description)
+- Applications: approve or reject pending applications
+- Regions: list, add, edit and delete regions in both languages, or
+  `/add_region Name (uz) | Name (ru)`
+- FAQ: manage categories and questions/answers in both languages
+- Broadcasts: text or photo with optional URL buttons, confirmed with `/yes`;
+  queued in Redis and sent by a rate-limited background worker with retries
+  and a dead-letter queue
+- Support inbox in the admin group (optionally in a forum topic): reply to a
+  ticket post to answer the user, `/progress_<id>` and `/close_<id>` to change
+  its status
+- Super-admin panel: list and search users, promote / demote admins
 
-1. Create a virtualenv and install dependencies:
+**Infrastructure**
+
+- Middlewares: DB session per update, user context, role-based access, per-user
+  rate limiting (Redis sliding window), creation cooldown for tickets/suggestions
+- Redis-backed FSM storage, broadcast queue and metrics counters (approximate DAU)
+- Alembic migrations (the app never calls `create_all`)
+- Optional Google Sheets reporting (Users, Applications, Tickets tabs) through a
+  background outbox
+- Optional Sentry error reporting and JSON logs
+- Optional FastAPI app with `/health` and `/metrics/summary`
+
+## Bot commands
+
+| Command | Where | Who | Description |
+|---|---|---|---|
+| `/start` | private | everyone | Start registration, or show the main menu |
+| `/lang`, `/language` | private | registered users | Change interface language |
+| `/force_start` | private | everyone | Reset a stuck conversation state |
+| `/admin` | private | admins | Open the admin panel |
+| `/add_region <uz> \| <ru>` | private | admins | Add a region, e.g. `/add_region Toshkent \| Ташкент` |
+| `/cancel` | private | admins | Cancel project creation or a broadcast |
+| `/skip` | private | admins | Skip the buttons step of a broadcast |
+| `/yes` | private | admins | Confirm and send a broadcast |
+| `/help` | group | everyone | Short help for group chats |
+| `/volunteer_info` | group | everyone | Show the project linked to this group |
+| `/link_group <name>` | group | admins | Link the group to a project (description on the next line) |
+| `/progress_<id>` | admin group | admins | Mark ticket `<id>` as in progress |
+| `/close_<id>` | admin group | admins | Close ticket `<id>` |
+
+Most volunteer and admin actions are reply-keyboard buttons in the main menu
+rather than slash commands.
+
+## Tech stack
+
+- Python 3.11+, [aiogram 3](https://docs.aiogram.dev/) (long polling)
+- SQLAlchemy 2 (async) with aiosqlite or asyncpg, Alembic
+- Redis (`redis-py` asyncio)
+- pydantic-settings for configuration
+- Optional: gspread + google-auth, sentry-sdk, FastAPI + Uvicorn
+
+## Getting started
+
+### Prerequisites
+
+- Python 3.11 or newer
+- A running Redis server
+- A bot token from [@BotFather](https://t.me/BotFather)
+- A Telegram group (or supergroup) for admins, with the bot added as a member
+- Optional: PostgreSQL
+
+### Install
 
 ```bash
-cd d:\projects\volunteers_bot
+git clone https://github.com/Viltrumlik/volunteers_bot.git
+cd volunteers_bot
 python -m venv .venv
-.venv\Scripts\activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-2. Copy `.env.example` to `.env` and set:
+### Configure
 
-   - `BOT_TOKEN` — from [@BotFather](https://t.me/BotFather)
-   - `REDIS_URL` — required (FSM, rate limits, queues, metrics)
-   - `ADMIN_IDS` — comma-separated numeric user IDs
-   - `ADMIN_GROUP_ID` — numeric chat ID of the central admin group (the bot must be a member)
-   - Optional `SUPER_ADMIN_IDS`; if omitted, every `ADMIN_IDS` entry is treated as a super-admin for the panel
+```bash
+cp .env.example .env
+```
 
-3. Create the database schema (Alembic only; the app does not run `create_all`):
+Required variables:
+
+| Variable | Example | Description |
+|---|---|---|
+| `BOT_TOKEN` | `123456:ABC-DEF...` | Bot token from @BotFather |
+| `ADMIN_GROUP_ID` | `-1001234567890` | Chat id of the admin group that receives tickets and suggestions |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection (FSM, rate limits, queues, metrics) |
+| `ADMIN_IDS` | `111111111,222222222` | Comma-separated Telegram user ids of admins |
+
+Optional variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `SUPER_ADMIN_IDS` | empty | Super-admins; if empty, every `ADMIN_IDS` entry is a super-admin |
+| `ADMIN_TICKET_TOPIC_ID` | empty | Forum topic id in the admin group for tickets |
+| `DATABASE_URL` | `sqlite+aiosqlite:///./volunteers_bot.db` | e.g. `postgresql://user:password@localhost:5432/volunteers` (rewritten to `postgresql+asyncpg://`) |
+| `NEWS_QUEUE_KEY` / `NEWS_DLQ_KEY` | `volunteers_bot:news_queue` / `volunteers_bot:news_dlq` | Redis keys for the broadcast queue and dead-letter queue |
+| `FSM_REDIS_KEY_PREFIX` | `fsm` | Redis key prefix for FSM storage |
+| `NEWS_MESSAGES_PER_SEC` | `25` | Broadcast worker send rate |
+| `NEWS_MAX_RETRIES` / `NEWS_RETRY_BASE_DELAY_SEC` | `3` / `0.5` | Broadcast retry policy |
+| `BROADCAST_BATCH_SIZE` / `BROADCAST_DELAY_SEC` | `25` / `0.05` | Batching for direct sends |
+| `RATE_LIMIT_MESSAGES` / `RATE_LIMIT_WINDOW_SEC` | `20` / `60` | Per-user message rate limit |
+| `CREATION_COOLDOWN_SEC` | `45` | Seconds between new tickets or suggestions per user (`0` disables) |
+| `JSON_LOGS` / `LOG_LEVEL` | `0` / `INFO` | Logging format and level |
+| `SENTRY_DSN` | empty | Enables Sentry when set |
+| `GOOGLE_CREDENTIALS_PATH` / `GOOGLE_SHEET_ID` | empty | Enables Google Sheets reporting when both are set |
+
+`.env` is gitignored — keep real tokens out of the repository.
+
+For Google Sheets: enable the Sheets API in Google Cloud, create a service
+account, download its JSON key, and share the spreadsheet with the service
+account email as Editor.
+
+### Create the database schema
+
+Tables are created only by Alembic:
 
 ```bash
 alembic upgrade head
 ```
 
-For PostgreSQL, set `DATABASE_URL`, for example `postgresql://user:password@host:5432/dbname` (the app normalizes this to `postgresql+asyncpg://`).
+`schema.sql` is a reference copy of the DDL; the SQLAlchemy models and the
+migrations are the source of truth.
 
-4. Run the bot (from the project root):
+### Run
 
 ```bash
 python -m app.main
 ```
 
-## Admin group
+Optional HTTP API (health check and Redis metrics), as a separate process:
 
-- Add the bot to the group; disable privacy mode in BotFather (`/setprivacy` → Disable) if you need the bot to see all messages for ticket replies.
-- Ticket and suggestion posts include user id, name, username, and phone.
-- Reply **to the bot’s ticket message** (or to any message in that reply thread) so the bot can `copy_to` the volunteer. Use `/close_<id>` on a line by itself to close.
+```bash
+uvicorn app.api.main:app --host 127.0.0.1 --port 8080
+```
 
-## Roles
+### Admin group setup
+
+- Add the bot to the admin group. If admins should be able to answer tickets by
+  replying, disable privacy mode in @BotFather (`/setprivacy` → Disable) so the
+  bot sees those replies.
+- Ticket and suggestion posts include the user's id, name and username.
+- Reply to the bot's ticket post (or anywhere in that reply thread) to send a
+  message to the volunteer.
+
+### Roles
 
 - **user** — default after registration
-- **admin** — FAQ, stats, broadcast, `/link_group` in groups
-- **super_admin** — user management panel; can assign roles in DB
+- **admin** — projects, applications, regions, FAQ, broadcasts, `/link_group`
+- **super_admin** — everything above plus the user management panel
 
-Env-listed `ADMIN_IDS` / `SUPER_ADMIN_IDS` are merged on each update so configured operators keep at least the env-assigned role.
+Users listed in `ADMIN_IDS` / `SUPER_ADMIN_IDS` keep at least that role on every
+update, even if the database says otherwise.
 
-## Production notes
+### Production notes
 
-- Use a process manager (systemd, Docker, etc.) and one bot instance per token.
-- **Redis** is required: FSM, rate limiting, news queue, and metrics assume `REDIS_URL` (multi-worker safe).
-- Run `alembic upgrade head` on deploy before starting the bot.
-- Tune `BROADCAST_*`, `RATE_LIMIT_*`, and `CREATION_COOLDOWN_SEC` for Telegram limits and your audience size.
+- Run under a process manager (systemd, Docker, ...) with one bot instance per token.
+- Run `alembic upgrade head` on every deploy before starting the bot.
+- Tune the `NEWS_*`, `BROADCAST_*`, `RATE_LIMIT_*` and `CREATION_COOLDOWN_SEC`
+  values for Telegram's limits and your audience size.
+
+## Project structure
+
+```
+app/
+  main.py              entry point: bot, dispatcher, middlewares, background workers
+  config.py            settings (pydantic-settings, .env)
+  handlers/            routers: user/, admin/, emergency.py (high-priority commands)
+  services/            business logic (users, projects, tickets, broadcasts, ...)
+  repositories/        database queries
+  database/            models, async session, bootstrap data
+  middlewares/         DB session, user context, RBAC, rate limiting
+  keyboards/           reply and inline keyboards
+  states/              FSM state groups
+  locales/             uz.json, ru.json
+  integrations/        Google Sheets service and outbox
+  infrastructure/      Redis connection and lock
+  monitoring/          Redis counters
+  api/                 optional FastAPI app
+  security/, utils/    RBAC helpers, validation, formatting
+migrations/            Alembic environment and versions
+schema.sql             reference DDL
+alembic.ini
+requirements.txt
+.env.example
+```
+
+## License
+
+Released under the [MIT License](LICENSE).
